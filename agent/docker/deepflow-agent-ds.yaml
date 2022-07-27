@@ -35,6 +35,8 @@ spec:
               subPath: ""
             - name: netns # required to access net namespace info
               mountPath: /var/run/netns
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: sys-kernel-debug
           hostPath:
@@ -49,6 +51,9 @@ spec:
         - name: netns
           hostPath:
             path: /var/run/netns
+        - name: tmp
+          hostPath:
+            path: /tmp
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1

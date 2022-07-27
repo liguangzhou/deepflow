@@ -10,6 +10,7 @@ RUN --mount=target=/tmp-mount \
     && apk add -U tzdata \
     && cp /usr/share/zoneinfo/${DEFAULT_TZ} /etc/localtime \
     && apk del tzdata \
+    && apk add valgrind \
     && rm -rf /var/cache/apk/*  && \
     chmod 600 /etc/passwd; \
     echo "deepflow:x:1000:1000::/home/deepflow:/bin/bash" >> /etc/passwd; \
@@ -17,9 +18,10 @@ RUN --mount=target=/tmp-mount \
     chmod 000 /etc/passwd; \
     mkdir -p /lib64 && \
     AGENT_BUILD_ARCH=$(echo ${TARGETARCH}|sed 's|amd64|x86_64|'|sed 's|arm64|aarch64|') && \
-    cp -raf /tmp-mount/${AGENT_BUILD_ARCH}/agent/output/target/${AGENT_BUILD_ARCH}-unknown-linux-musl/release/deepflow-agent /bin/  && \
-    cp -raf /tmp-mount/${AGENT_BUILD_ARCH}/agent/output/target/${AGENT_BUILD_ARCH}-unknown-linux-musl/release/deepflow-agent-ctl /bin/  && \
+    cp -raf /tmp-mount/${AGENT_BUILD_ARCH}/agent/output/target/release/deepflow-agent /bin/  && \
+    cp -raf /tmp-mount/${AGENT_BUILD_ARCH}/agent/output/target/release/deepflow-agent-ctl /bin/  && \
     cp -raf /tmp-mount/${AGENT_BUILD_ARCH}/agent/output/src/ebpf/deepflow-ebpfctl /bin/  && \
+    cp -raf /tmp-mount/agent/docker/require/* /lib64  && \
     chmod 4755 /bin/busybox 
 
 USER root
