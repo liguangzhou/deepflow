@@ -17,6 +17,7 @@
 package decoder
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/golang/protobuf/proto"
@@ -165,8 +166,17 @@ func (d *Decoder) Run() {
 
 func (d *Decoder) handleTaggedFlow(decoder *codec.SimpleDecoder, pbTaggedFlow *pb.TaggedFlow) {
 	for !decoder.IsEnd() {
-		pbTaggedFlow.ResetAll()
+		// pbTaggedFlow.ResetAll()
+		pbTaggedFlow = &pb.TaggedFlow{}
 		decoder.ReadPB(pbTaggedFlow)
+		/*
+			if pbTaggedFlow.Flow.FlowKey.PortDst == 30035 {
+				pref := pbTaggedFlow.Flow.PerfStats
+				if pbTaggedFlow.Flow.HasPerfStats && perf != nil {
+					fmt.Printf("%s", pbTaggedFlow)
+				}
+			}
+		*/
 		if decoder.Failed() {
 			d.counter.ErrorCount++
 			log.Errorf("flow decode failed, offset=%d len=%d", decoder.Offset(), len(decoder.Bytes()))
@@ -238,6 +248,11 @@ func (d *Decoder) sendFlow(flow *pb.TaggedFlow) {
 	}
 	d.counter.L4Count++
 	l := jsonify.TaggedFlowToLogger(flow, d.shardID, d.platformData)
+	if l.Metrics.RetransRx > 0 || l.Metrics.RetransTx > 0 {
+		fmt.Printf("pbb %v\n", flow)
+		fmt.Printf("l44 %v\n", l)
+		log.Warningf("pbbb %v\n", flow)
+	}
 	if !d.throttler.Send(l) {
 		d.counter.L4DropCount++
 	}
