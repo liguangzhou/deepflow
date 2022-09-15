@@ -63,6 +63,10 @@ const (
 	STATUS_CLIENT_ERROR
 )
 
+const (
+	RESPONSE_CODE_NONE int16 = -32768
+)
+
 type AppProtoHead struct {
 	Proto   L7Protocol
 	MsgType LogMessageType // HTTP，DNS: request/response

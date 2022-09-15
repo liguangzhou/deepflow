@@ -379,3 +379,5 @@ pub const MIN_MASK_LEN: u8 = 0;
 // 静态配置项默认值
 pub const L7_PROTOCOL_INFERENCE_MAX_FAIL_COUNT: usize = 50;
 pub const L7_PROTOCOL_INFERENCE_TTL: usize = 60;
+
+pub const RESPONSE_CODE_NONE: i32 = i16::MIN as i32;
