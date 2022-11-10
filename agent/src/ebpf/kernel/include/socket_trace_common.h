@@ -117,6 +117,12 @@ struct socket_info_t {
 	__u64 uid; // socket唯一标识ID
 } __attribute__((packed));
 
+struct trace_key_t {
+	__u32 tgid;
+	__u32 pid;
+	__u64 goid;
+} __attribute__((packed));
+
 struct trace_info_t {
 	__u32 update_time; // 从系统开机开始到创建/更新时的间隔时间单位是秒
 	__u32 peer_fd;	   // 用于socket之间的关联

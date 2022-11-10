@@ -74,8 +74,29 @@ BPF_HASH(active_read_args_map, __u64, struct data_args_t)
 // Key is {pid + fd}. value is struct socket_info_t
 BPF_HASH(socket_info_map, __u64, struct socket_info_t)
 
-// Key is {tgid, pid}. value is trace_info_t
-BPF_HASH(trace_map, __u64, struct trace_info_t)
+// Key is struct trace_key_t. value is trace_info_t
+BPF_HASH(trace_map, struct trace_key_t, struct trace_info_t)
+
+static __inline struct trace_key_t get_trace_key()
+{
+	__u64 pid_tgid = bpf_get_current_pid_tgid();
+	// TODO: 获取与业务相关的协程号
+	__u64 goid = 0;
+
+	struct trace_key_t key = {};
+
+	key.tgid = (__u32)(pid_tgid >> 32);
+
+	// 有协程号时使用协程号,否则使用线程号
+	// 使用其中一个时另一个保持默认值 0
+	if (goid) {
+		key.goid = goid;
+	} else {
+		key.pid = (__u32)pid_tgid;
+	}
+
+	return key;
+}
 
 static __inline bool is_protocol_enabled(int protocol)
 {
@@ -618,7 +639,8 @@ static __inline void trace_process(struct socket_info_t *socket_info_ptr,
 		}
 		trace_info.update_time = time_stamp / NS_PER_SEC;
 		trace_info.socket_id = socket_id;
-		trace_map__update(&pid_tgid, &trace_info);
+		struct trace_key_t key = get_trace_key();
+		trace_map__update(&key, &trace_info);
 		if (!trace_info_ptr)
 			trace_stats->trace_map_count++;
 	} else { /* direction == T_EGRESS */
@@ -634,8 +656,8 @@ static __inline void trace_process(struct socket_info_t *socket_info_ptr,
 
 			trace_stats->trace_map_count--;
 		}
-
-		trace_map__delete(&pid_tgid);
+		struct trace_key_t key = get_trace_key();
+		trace_map__delete(&key);
 	}
 }
 
@@ -753,8 +775,8 @@ data_submit(struct pt_regs *ctx, struct conn_info_t *conn_info,
 	if (trace_stats == NULL)
 		return;
 
-	struct trace_info_t *trace_info_ptr =
-				trace_map__lookup(&pid_tgid);
+	struct trace_key_t key = get_trace_key();
+	struct trace_info_t *trace_info_ptr = trace_map__lookup(&key);
 
 	struct socket_info_t *socket_info_ptr = conn_info->socket_info_ptr;
 	// 'socket_id' used to resolve non-tracing between the same socket
@@ -1480,8 +1502,8 @@ TPPROG(sys_exit_socket) (struct syscall_comm_exit_ctx *ctx) {
 	if (!(comm[0] == 'n' && comm[1] == 'g' && comm[2] == 'i' &&
 	      comm[3] == 'n' && comm[4] == 'x' && comm[5] == '\0'))
 		return 0;
-
-	struct trace_info_t *trace = trace_map__lookup(&id);
+	struct trace_key_t key = get_trace_key();
+	struct trace_info_t *trace = trace_map__lookup(&key);
 	if (trace && trace->peer_fd != 0 && trace->peer_fd != (__u32)fd) {
 		struct socket_info_t sk_info = { 0 };
 		sk_info.peer_fd = trace->peer_fd;
