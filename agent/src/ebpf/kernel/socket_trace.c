@@ -77,27 +77,6 @@ BPF_HASH(socket_info_map, __u64, struct socket_info_t)
 // Key is struct trace_key_t. value is trace_info_t
 BPF_HASH(trace_map, struct trace_key_t, struct trace_info_t)
 
-static __inline struct trace_key_t get_trace_key()
-{
-	__u64 pid_tgid = bpf_get_current_pid_tgid();
-	// TODO: 获取与业务相关的协程号
-	__u64 goid = 0;
-
-	struct trace_key_t key = {};
-
-	key.tgid = (__u32)(pid_tgid >> 32);
-
-	// 有协程号时使用协程号,否则使用线程号
-	// 使用其中一个时另一个保持默认值 0
-	if (goid) {
-		key.goid = goid;
-	} else {
-		key.pid = (__u32)pid_tgid;
-	}
-
-	return key;
-}
-
 static __inline bool is_protocol_enabled(int protocol)
 {
 	int *enabled = protocol_filter__lookup(&protocol);
@@ -147,10 +126,28 @@ static __u32 __inline get_tcp_read_seq_from_fd(int fd)
 	return tcp_seq;
 }
 
-#include "uprobe_base_bpf.c" // get_go_version
+#include "uprobe_base_bpf.c"
 #include "include/protocol_inference.h"
 #define EVENT_BURST_NUM            16
 #define CONN_PERSIST_TIME_MAX_NS   100000000000ULL
+
+static __inline struct trace_key_t get_trace_key()
+{
+	__u64 pid_tgid = bpf_get_current_pid_tgid();
+	__u64 goid = get_rw_goid();
+
+	struct trace_key_t key = {};
+
+	key.tgid = (__u32)(pid_tgid >> 32);
+
+	if (goid) {
+		key.goid = goid;
+	} else {
+		key.pid = (__u32)pid_tgid;
+	}
+
+	return key;
+}
 
 static __inline unsigned int __retry_get_sock_flags(void *sk,
 						    int offset)
@@ -789,11 +786,11 @@ data_submit(struct pt_regs *ctx, struct conn_info_t *conn_info,
 		socket_id = socket_info_ptr->uid;
 	}
 
-	// (jiping) set thread_trace_id = 0 for go process
 	if (conn_info->message_type != MSG_PRESTORE &&
-	    conn_info->message_type != MSG_RECONFIRM && !get_go_version())
-		trace_process(socket_info_ptr, conn_info, socket_id, pid_tgid, trace_info_ptr,
-			      trace_uid, trace_stats, &thread_trace_id, time_stamp);
+	    conn_info->message_type != MSG_RECONFIRM)
+		trace_process(socket_info_ptr, conn_info, socket_id, pid_tgid,
+			      trace_info_ptr, trace_uid, trace_stats,
+			      &thread_trace_id, time_stamp);
 
 	if (!is_socket_info_valid(socket_info_ptr)) {
 		if (socket_info_ptr && conn_info->direction == T_EGRESS) {
