@@ -300,6 +300,10 @@ static __inline void http2_fill_common_socket(struct http2_header_data *data,
 	if (trace_uid == NULL)
 		return;
 
+	struct trace_stats *trace_stats = trace_stats_map__lookup(&k0);
+	if (trace_stats == NULL)
+		return;
+
 	// Update and get socket_id
 	__u64 conn_key;
 	struct socket_info_t *socket_info_ptr;
@@ -315,11 +319,21 @@ static __inline void http2_fill_common_socket(struct http2_header_data *data,
 			.uid = send_buffer->socket_id,
 		};
 		socket_info_map__update(&conn_key, &sk_info);
-		struct trace_stats *trace_stats = trace_stats_map__lookup(&k0);
-		if (trace_stats == NULL)
-			return;
+
 		trace_stats->socket_map_count++;
 	}
+
+	struct trace_key_t key = get_trace_key();
+	struct trace_info_t *trace_info_ptr = trace_map__lookup(&key);
+
+	struct conn_info_t conn_info = {
+		.direction = send_buffer->direction,
+		.message_type = send_buffer->msg_type,
+	};
+
+	trace_process(socket_info_ptr, &conn_info, send_buffer->socket_id, id,
+		      trace_info_ptr, trace_uid, trace_stats,
+		      &send_buffer->thread_trace_id, send_buffer->timestamp);
 
 	send_buffer->tgid = tgid;
 	send_buffer->pid = (__u32)id;
