@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/deepflowys/deepflow/server/querier/common"
+	"github.com/deepflowys/deepflow/server/querier/config"
 	"github.com/deepflowys/deepflow/server/querier/engine/clickhouse"
 	"github.com/google/uuid"
 	"github.com/grafana/tempo/pkg/tempopb"
@@ -45,11 +46,13 @@ var RESOURCE_KEY_MAP = map[string]string{
 }
 
 var SPAN_KEY_MAP = map[string]string{
-	"tap_side": "tap_side",
+	"tap_side":                "tap_side",
+	"deepflow_span_id":        "deepflow_span_id",
+	"deepflow_parent_span_id": "deepflow_parent_span_id",
 }
 
 func L7TracingRequest(args *common.TempoParams) (map[string]interface{}, error) {
-	url := "http://deepflow-app:20418/v1/stats/querier/L7FlowTracing"
+	url := fmt.Sprintf("http://%s:%s/v1/stats/querier/L7FlowTracing", config.Cfg.DeepflowApp.Host, config.Cfg.DeepflowApp.Port)
 	l7Body := map[string]interface{}{
 		"trace_id":       args.TraceId,
 		"time_start":     args.StartTime,
@@ -166,24 +169,31 @@ func ConvertL7TracingRespToProto(data map[string]interface{}, argTraceId string)
 			traceId = argTraceId
 		}
 		spanId := trace["deepflow_span_id"].(string)
-		spanId = strings.ReplaceAll(spanId, ".", "")
-		spanId = strings.ReplaceAll(spanId, "-", "")
+		spanId = strings.ReplaceAll(spanId, "0x", "")
+		if len(spanId) >= 16 {
+			spanId = spanId[:16]
+		} else {
+			spanId = ""
+			log.Errorf("spanId(%s) length Error", spanId)
+		}
 		spanIdBytes, err := hex.DecodeString(spanId)
 		if err != nil {
 			log.Errorf("spanId(%s) Decode Error", spanId)
 			log.Error(err)
 		}
-		if len(spanIdBytes) > 8 {
-			spanIdBytes = spanIdBytes[len(spanIdBytes)-8:]
-		}
 		//spanIdBytes := []byte{0xab, 0xb5, 0xcf, 0x60, 0x03, 0x2b, 0xc5, 0xfe}
 		parentSpanId := trace["deepflow_parent_span_id"].(string)
-		parentSpanId = strings.ReplaceAll(parentSpanId, ".", "")
-		parentSpanId = strings.ReplaceAll(parentSpanId, "-", "")
-		parentSpanIdBytes := []byte{}
-		if len(parentSpanIdBytes) > 8 {
-			parentSpanIdBytes, _ = hex.DecodeString(parentSpanId)
-			parentSpanIdBytes = parentSpanIdBytes[len(parentSpanIdBytes)-8:]
+		parentSpanId = strings.ReplaceAll(parentSpanId, "0x", "")
+		if len(parentSpanId) >= 16 {
+			parentSpanId = parentSpanId[:16]
+		} else {
+			parentSpanId = ""
+			log.Errorf("parentSpanId(%s) length Error", parentSpanId)
+		}
+		parentSpanIdBytes, err := hex.DecodeString(parentSpanId)
+		if err != nil {
+			log.Errorf("parentSpanId(%s) Decode Error", parentSpanId)
+			log.Error(err)
 		}
 		traceIdBytes, _ := hex.DecodeString(traceId)
 		spanName := trace["endpoint"].(string)
@@ -266,7 +276,7 @@ func ShowTags(args *common.TempoParams) (resp map[string][]interface{}, debug ma
 		return nil, debug, err
 	}
 	tagNames := []interface{}{}
-	for _, d := range result["values"] {
+	for _, d := range result.Values {
 		value := d.([]interface{})
 		if strings.Contains(value[0].(string), "attribute.") {
 			tagNames = append(tagNames, value[0])
@@ -303,7 +313,7 @@ func ShowTagValues(args *common.TempoParams) (resp map[string][]interface{}, deb
 		return nil, debug, err
 	}
 	tagValues := []interface{}{}
-	for _, d := range result["values"] {
+	for _, d := range result.Values {
 		value := d.([]interface{})
 		tagValues = append(tagValues, value[0])
 	}
@@ -380,7 +390,7 @@ func TraceSearch(args *common.TempoParams) (resp map[string]interface{}, debug m
 		return nil, debug, err
 	}
 	respValues := []map[string]interface{}{}
-	for _, d := range result["values"] {
+	for _, d := range result.Values {
 		value := d.([]interface{})
 		respValues = append(respValues, map[string]interface{}{
 			"durationMs":        value[4],
