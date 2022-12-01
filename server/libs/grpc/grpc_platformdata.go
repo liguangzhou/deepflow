@@ -882,11 +882,11 @@ func (t *PlatformInfoTable) updateServices(response *trident.SyncResponse) bool 
 		groupIDMapProtoIgnore := groupIDMap
 		groupIDMapProtoIgnore.Protocol = 0
 		groupIDMapProtoIgnore.GroupID = uint16(serviceIndex)
-		if !servicesHasGroupIDMap(services, groupIDMapProtoIgnore) { // 防止重复增加
-			services = append(services, groupIDMapProtoIgnore)
-			serviceIndex++
-			log.Debugf("svc protocol ignore: %+v", groupIDMapProtoIgnore)
-		}
+		//if !servicesHasGroupIDMap(services, groupIDMapProtoIgnore) { // 防止重复增加
+		services = append(services, groupIDMapProtoIgnore)
+		serviceIndex++
+		log.Debugf("svc protocol ignore: %+v", groupIDMapProtoIgnore)
+		//}
 	}
 	if t.serviceLabeler != nil &&
 		t.serviceLabeler.portFilter != nil &&
