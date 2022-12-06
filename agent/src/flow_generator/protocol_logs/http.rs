@@ -21,9 +21,9 @@ use log::debug;
 use serde::Serialize;
 
 use super::pb_adapter::{ExtendedInfo, L7ProtocolSendLog, L7Request, L7Response, TraceInfo};
-use super::value_is_default;
 use super::LogMessageType;
 use super::{consts::*, AppProtoHead, L7ResponseStatus};
+use super::{decode_new_rpc_trace_context, value_is_default, NEW_RPC_TRACE_CTX_KEY};
 
 use crate::{
     common::{
@@ -917,12 +917,18 @@ impl HttpLog {
         let key_bytes = key.as_bytes();
 
         if self.l7_log_dynamic_config.is_trace_id(key_str) {
-            if let Some(id) = Self::decode_id(
-                &String::from_utf8_lossy(val.as_ref()),
-                key_str,
-                Self::TRACE_ID,
-            ) {
-                self.info.trace_id = id;
+            if key_str.as_bytes() == NEW_RPC_TRACE_CTX_KEY {
+                let ctx = decode_new_rpc_trace_context(val.as_ref());
+                self.info.trace_id = ctx.trace_id;
+                self.info.span_id = ctx.span_id;
+            } else {
+                if let Some(id) = Self::decode_id(
+                    &String::from_utf8_lossy(val.as_ref()),
+                    key_str,
+                    Self::TRACE_ID,
+                ) {
+                    self.info.trace_id = id;
+                }
             }
         }
         if self.l7_log_dynamic_config.is_span_id(key_str) {

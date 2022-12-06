@@ -612,6 +612,76 @@ static __inline enum message_type infer_postgre_message(const char *buf,
 	}
 }
 
+
+/*
+	* Request command protocol for v1
+	* 0     1     2           4           6           8          10           12          14         16
+	* +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+	* |proto| type| cmdcode   |ver2 |   requestId           |codec|        timeout        |  classLen |
+	* +-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
+	* |headerLen  | contentLen            |                             ... ...                       |
+	* +-----------+-----------+-----------+                                                           +
+	* |               className + header  + content  bytes                                            |
+	* +                                                                                               +
+	* |                               ... ...                                                         |
+	* +-----------------------------------------------------------------------------------------------+
+
+	* Response command protocol for v1
+	* 0     1     2     3     4           6           8          10           12          14         16
+	* +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+
+	* |proto| type| cmdcode   |ver2 |   requestId           |codec|respstatus |  classLen |headerLen  |
+	* +-----------+-----------+-----------+-----------+-----------+-----------+-----------+-----------+
+	* | contentLen            |                  ... ...                                              |
+	* +-----------------------+                                                                       +
+	* |                         className + header  + content  bytes                                  |
+	* +                                                                                               +
+	* |                               ... ...                                                         |
+	* +-----------------------------------------------------------------------------------------------+
+*/
+
+static __inline enum message_type infer_sofarpc_message(const char *buf,
+						      size_t count,
+						      struct conn_info_t
+						      *conn_info)
+{
+
+	char const PROTO_BOLT_V1 = 1;
+	char const TYPE_REQ = 1;
+	char const TYPE_RESP = 0;
+	unsigned short const CMD_CODE_HEARTBEAT = 0;
+	unsigned short const CMD_CODE_REQ = 1;
+	unsigned short const CMD_CODE_RESP = 2;
+
+
+	if (!is_protocol_enabled(PROTO_SOFARPC)) {
+			return MSG_UNKNOWN;
+	}
+
+	if (conn_info->tuple.l4_protocol != IPPROTO_TCP){
+		return MSG_UNKNOWN;
+	}
+	if (is_socket_info_valid(conn_info->socket_info_ptr)) {
+		if (conn_info->socket_info_ptr->l7_proto != PROTO_SOFARPC)
+			return MSG_UNKNOWN;
+	}
+
+	char proto = buf[0];
+	char type = buf[1];
+	unsigned short cmdcode = (((unsigned short)buf[2])<<8) + (unsigned short)buf[3];
+
+	if (proto != PROTO_BOLT_V1){
+		return MSG_UNKNOWN;
+	}
+
+	if (type!=TYPE_REQ && type!=TYPE_RESP){
+		return MSG_UNKNOWN;
+	}
+
+	if (cmdcode != CMD_CODE_REQ && cmdcode != CMD_CODE_RESP){
+		return MSG_UNKNOWN;
+	}
+}
+
 /*
 0                   15 16                     31
 |---------------------|-----------------------|
@@ -1336,6 +1406,10 @@ static __inline struct protocol_message_t infer_protocol(const char *buf,
 		    infer_postgre_message(infer_buf, count,
 					conn_info)) != MSG_UNKNOWN){
 		inferred_message.protocol = PROTO_POSTGRESQL;
+	}else if ((inferred_message.type =
+		    infer_sofarpc_message(infer_buf, count,
+					conn_info)) != MSG_UNKNOWN){
+		inferred_message.protocol = PROTO_SOFARPC;
 	}
 
 	return inferred_message;

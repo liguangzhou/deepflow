@@ -240,7 +240,7 @@ impl L7ProtocolParserInterface for KrpcLog {
         };
         self.info.fill_from_pb(hdr)?;
         match self.info.msg_type {
-            LogMessageType::Request => self.perf_inc_req(),
+            LogMessageType::Request => self.perf_inc_req(param.time),
             LogMessageType::Response => {
                 self.perf_inc_resp(param.time);
                 if self.info.ret_code != 0 {
