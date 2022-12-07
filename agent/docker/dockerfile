@@ -8,6 +8,7 @@ ARG TARGETARCH
 RUN --mount=target=/tmp-mount \
     apk upgrade --update \
     && apk add -U tzdata \
+    && apk add -U perf \
     && cp /usr/share/zoneinfo/${DEFAULT_TZ} /etc/localtime \
     && apk del tzdata \
     && rm -rf /var/cache/apk/*  && \
